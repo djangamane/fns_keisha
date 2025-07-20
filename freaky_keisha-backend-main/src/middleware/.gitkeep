@@ -1,0 +1,2 @@
+# Middleware directory
+# Contains requestLogger.js, security.js, auth.js, errorHandler.js

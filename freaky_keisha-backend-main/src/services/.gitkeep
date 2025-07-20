@@ -1,0 +1,2 @@
+# Services directory
+# Contains encryptionService.js, huggingfaceService.js, conversationService.js, supabaseService.js
