@@ -1,0 +1,50 @@
+name: Precompute FNS Hybrid Snapshots
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 11,23 * * *' # 6am & 6pm Central Time (CDT ~ UTC-5)
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+
+      - name: Precompute hybrid data
+        run: |
+          node fragiled2/scripts/precompute_hybrid.js --out-dir precomputed
+        env:
+          PRECOMPUTE_LIMIT: '24'
+          PRECOMPUTE_MIN_SEVERITY: '70'
+          PRECOMPUTE_DAYS_BACK: '2'
+
+      - name: Commit precomputed artifacts to data branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -B data
+          mkdir -p data
+          mv precomputed/* data/
+          git add data/*.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(fns): update precomputed hybrid snapshots"
+            git push -f origin data
+          fi
+
