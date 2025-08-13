@@ -1,0 +1,16 @@
+[
+  {
+    "id": "fns_backup_001",
+    "title": "Local Backup Article - Test",
+    "url": "https://example.com/backup-test",
+    "content": "This is a backup article for testing local fallback functionality.",
+    "summary": "Test backup article for local fallback",
+    "keyword": "systemic racism",
+    "severity_score": 75.0,
+    "sentiment": -0.2,
+    "date": "2025-08-12",
+    "source_type": "local_backup",
+    "imported_at": "2025-08-12T17:53:00.000Z",
+    "analysis_status": "completed"
+  }
+]

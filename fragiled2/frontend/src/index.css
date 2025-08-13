@@ -1,0 +1,66 @@
+/* Matrix-themed global styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #000000;
+  color: #00FF41;
+  overflow-x: hidden;
+}
+
+code {
+  font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.8);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(0, 255, 65, 0.3);
+  color: #00FF41;
+}
+
+/* Focus outline */
+*:focus {
+  outline: 2px solid rgba(0, 255, 65, 0.5);
+  outline-offset: 2px;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+}
+
+/* Remove default link styles */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}

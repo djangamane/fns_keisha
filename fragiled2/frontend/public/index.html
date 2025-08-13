@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Fragile News Source - Matrix-enhanced news analysis with hybrid data sources"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Matrix-themed fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <title>Fragile News Source - Matrix Enhanced</title>
+    
+    <style>
+      /* Prevent flash of unstyled content */
+      body {
+        margin: 0;
+        font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+        background-color: #000000;
+        color: #00FF41;
+        overflow-x: hidden;
+      }
+      
+      /* Loading screen */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000000;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      
+      .loading-text {
+        color: #00FF41;
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        text-shadow: 0 0 10px #00FF41;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid transparent;
+        border-top: 3px solid #00FF41;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      .loading-subtext {
+        color: #339933;
+        font-size: 14px;
+        margin-top: 20px;
+        text-align: center;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 1; }
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Hide loading screen when React loads */
+      .loaded #loading-screen {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    
+    <!-- Loading screen -->
+    <div id="loading-screen">
+      <div class="loading-text">🎬 FRAGILE NEWS SOURCE</div>
+      <div class="loading-spinner"></div>
+      <div class="loading-subtext">
+        Initializing Matrix-Enhanced Analysis System...<br>
+        Loading hybrid data sources...
+      </div>
+    </div>
+    
+    <!-- React app root -->
+    <div id="root"></div>
+    
+    <script>
+      // Hide loading screen when React loads
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          document.body.classList.add('loaded');
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>

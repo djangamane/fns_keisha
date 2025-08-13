@@ -1,0 +1,84 @@
+/* Matrix-themed global styles */
+.App {
+  min-height: 100vh;
+  background: #000000;
+  color: #00FF41;
+  font-family: 'Courier New', monospace;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.main-content {
+  min-height: calc(100vh - 200px);
+  position: relative;
+  z-index: 1;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.8);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(0, 255, 65, 0.3);
+  color: #00FF41;
+}
+
+/* Focus outline */
+*:focus {
+  outline: 2px solid rgba(0, 255, 65, 0.5);
+  outline-offset: 2px;
+}
+
+/* Matrix glow animation */
+@keyframes matrixGlow {
+  0%, 100% { 
+    text-shadow: 0 0 5px #00FF41, 0 0 10px #00FF41; 
+  }
+  50% { 
+    text-shadow: 0 0 10px #00FF41, 0 0 20px #00FF41, 0 0 30px #00FF41; 
+  }
+}
+
+.matrix-glow {
+  animation: matrixGlow 2s ease-in-out infinite;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 10px;
+  }
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Error states */
+.error {
+  border-color: #ff0000 !important;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.3) !important;
+}
+
+/* Success states */
+.success {
+  border-color: #00ff00 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3) !important;
+}
