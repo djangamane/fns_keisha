@@ -7,6 +7,30 @@ const HybridNewsService = require('../services/hybridNewsService');
 const newsService = new FNSNewsService();
 const hybridService = new HybridNewsService();
 
+// Lightweight in-memory cache and inflight dedup for hybrid endpoint
+const HYBRID_CACHE_TTL_MS = 60 * 1000; // 60s micro-cache
+const hybridCache = new Map(); // key -> { data, expiresAt }
+const inFlight = new Map(); // key -> Promise
+
+const axios = require('axios');
+const PRECOMPUTED_BASE_URL = process.env.PRECOMPUTED_BASE_URL || 'https://raw.githubusercontent.com/djangamane/fns_keisha/data/data';
+
+
+function getCached(key) {
+  const entry = hybridCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    hybridCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCached(key, data) {
+  hybridCache.set(key, { data, expiresAt: Date.now() + HYBRID_CACHE_TTL_MS });
+}
+
+
 /**
  * @route GET /api/fns/news/feed
  * @desc Get news feed with optional filtering
@@ -33,7 +57,7 @@ router.get('/feed', async (req, res) => {
     };
 
     const result = await newsService.getNewsFeed(options);
-    
+
     res.json({
       success: true,
       data: result.articles,
@@ -59,14 +83,14 @@ router.get('/article/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const article = await newsService.getArticleById(id);
-    
+
     if (!article) {
       return res.status(404).json({
         success: false,
         error: 'Article not found'
       });
     }
-    
+
     res.json({
       success: true,
       data: article
@@ -90,12 +114,12 @@ router.get('/article/:id', async (req, res) => {
 router.post('/import', async (req, res) => {
   try {
     const { includeImages = false, batchSize = 50 } = req.body;
-    
+
     const result = await newsService.importArticles({
       includeImages,
       batchSize
     });
-    
+
     res.json({
       success: true,
       message: 'Articles imported successfully',
@@ -121,7 +145,7 @@ router.get('/pending-analysis', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
     const articles = await newsService.getArticlesPendingAnalysis(parseInt(limit));
-    
+
     res.json({
       success: true,
       data: articles
@@ -146,7 +170,7 @@ router.put('/article/:id/analysis-status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    
+
     const validStatuses = ['pending', 'processing', 'completed', 'failed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -155,9 +179,9 @@ router.put('/article/:id/analysis-status', async (req, res) => {
         validStatuses
       });
     }
-    
+
     await newsService.updateAnalysisStatus(id, status);
-    
+
     res.json({
       success: true,
       message: 'Analysis status updated'
@@ -181,7 +205,7 @@ router.put('/article/:id/analysis-status', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const stats = await newsService.getDashboardStats();
-    
+
     res.json({
       success: true,
       data: stats
@@ -205,7 +229,7 @@ router.get('/stats', async (req, res) => {
 router.get('/categories', async (req, res) => {
   try {
     const [categories] = await newsService.pool.execute(`
-      SELECT 
+      SELECT
         c.id, c.name, c.description, c.color_code,
         COUNT(ac.article_id) as article_count
       FROM fns_categories c
@@ -213,7 +237,7 @@ router.get('/categories', async (req, res) => {
       GROUP BY c.id, c.name, c.description, c.color_code
       ORDER BY article_count DESC, c.name ASC
     `);
-    
+
     res.json({
       success: true,
       data: categories
@@ -236,23 +260,23 @@ router.get('/categories', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const { 
-      q: query, 
-      limit = 20, 
+    const {
+      q: query,
+      limit = 20,
       offset = 0,
       category,
-      minSeverity = 0 
+      minSeverity = 0
     } = req.query;
-    
+
     if (!query || query.trim().length < 2) {
       return res.status(400).json({
         success: false,
         error: 'Search query must be at least 2 characters'
       });
     }
-    
+
     let searchQuery = `
-      SELECT 
+      SELECT
         a.id, a.title, a.url, a.summary, a.keyword,
         a.severity_score, a.date, a.featured_image,
         a.analysis_status,
@@ -260,19 +284,19 @@ router.get('/search', async (req, res) => {
       FROM fns_articles a
       LEFT JOIN fns_keisha_analysis k ON a.id = k.article_id
       WHERE (
-        a.title LIKE ? OR 
-        a.content LIKE ? OR 
+        a.title LIKE ? OR
+        a.content LIKE ? OR
         a.summary LIKE ?
       )
     `;
-    
+
     const searchTerm = `%${query}%`;
     const params = [searchTerm, searchTerm, searchTerm];
-    
+
     if (category) {
       searchQuery += `
         AND a.id IN (
-          SELECT ac.article_id 
+          SELECT ac.article_id
           FROM fns_article_categories ac
           JOIN fns_categories c ON ac.category_id = c.id
           WHERE c.name = ?
@@ -280,38 +304,38 @@ router.get('/search', async (req, res) => {
       `;
       params.push(category);
     }
-    
+
     if (minSeverity > 0) {
       searchQuery += ' AND a.severity_score >= ?';
       params.push(minSeverity);
     }
-    
+
     searchQuery += `
       ORDER BY a.date DESC
       LIMIT ? OFFSET ?
     `;
-    
+
     params.push(parseInt(limit), parseInt(offset));
-    
+
     const [articles] = await newsService.pool.execute(searchQuery, params);
-    
+
     // Get total count
     let countQuery = `
       SELECT COUNT(*) as total
       FROM fns_articles a
       WHERE (
-        a.title LIKE ? OR 
-        a.content LIKE ? OR 
+        a.title LIKE ? OR
+        a.content LIKE ? OR
         a.summary LIKE ?
       )
     `;
-    
+
     const countParams = [searchTerm, searchTerm, searchTerm];
-    
+
     if (category) {
       countQuery += `
         AND a.id IN (
-          SELECT ac.article_id 
+          SELECT ac.article_id
           FROM fns_article_categories ac
           JOIN fns_categories c ON ac.category_id = c.id
           WHERE c.name = ?
@@ -319,15 +343,15 @@ router.get('/search', async (req, res) => {
       `;
       countParams.push(category);
     }
-    
+
     if (minSeverity > 0) {
       countQuery += ' AND a.severity_score >= ?';
       countParams.push(minSeverity);
     }
-    
+
     const [countResult] = await newsService.pool.execute(countQuery, countParams);
     const total = countResult[0].total;
-    
+
     res.json({
       success: true,
       data: articles,
@@ -358,7 +382,7 @@ router.get('/search', async (req, res) => {
 router.post('/initialize', async (req, res) => {
   try {
     await newsService.initializeDatabase();
-    
+
     res.json({
       success: true,
       message: 'Database initialized successfully'
@@ -384,33 +408,90 @@ router.get('/data/hybrid', async (req, res) => {
     const {
       limit = 20,
       minSeverity = 70,
-      useLiveData = 'true'
+      useLiveData = 'true',
+      daysBack = '1',
+      topOnly = 'false'
     } = req.query;
+
+    const key = JSON.stringify({ limit, minSeverity, daysBack, topOnly });
+
+    // Micro-cache
+    const cached = getCached(key);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      return res.json(cached);
+    }
+
+    // In-flight deduplication
+    if (inFlight.has(key)) {
+      const dedup = await inFlight.get(key);
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      return res.json(dedup);
+    }
+
+    console.log(`🎯 Hybrid request: limit=${limit}, minSeverity=${minSeverity}, daysBack=${daysBack}, topOnly=${topOnly}`);
+
 
     console.log(`🎯 Getting live articles with Keisha analysis: limit=${limit}, minSeverity=${minSeverity}`);
 
+    // 1) Precomputed snapshots first
+    try {
+      const fileName = topOnly === 'true' ? 'top_6.json' : 'rest.json';
+      const url = `${PRECOMPUTED_BASE_URL}/${fileName}`;
+      const resp = await axios.get(url, { timeout: 8000 });
+      if (Array.isArray(resp.data) && resp.data.length > 0) {
+        const mapped = resp.data.map(article => {
+          const articleImages = article.images || [];
+          const featuredImage = articleImages.length > 0 ? (articleImages[0].url || articleImages[0]) :
+            'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=80';
+          return {
+            id: article.id || `hybrid-${Date.now()}-${Math.random()}`,
+            title: article.title,
+            url: article.url,
+            content: article.full_content || article.content || article.summary,
+            summary: article.summary,
+            keyword: article.keyword,
+            severity_score: article.severity_score,
+            sentiment: article.sentiment || 0,
+            date: article.date,
+            images: articleImages,
+            hasImages: articleImages.length > 0,
+            featured_image: featuredImage,
+            keisha_analysis: article.keisha_analysis || article.newsletter_analysis || '',
+            bias_score: article.severity_score,
+            source_type: 'precomputed',
+            content_fetched: !!article.full_content,
+            analysis_status: article.analysis_status || 'enhanced',
+            displayDate: article.date || new Date().toISOString().split('T')[0],
+            imported_at: article.enhanced_at || new Date().toISOString()
+          };
+        });
+        const limited = topOnly === 'true' ? mapped.slice(0, 6) : mapped.slice(0, parseInt(limit));
+        const payload = { success: true, data: limited, count: limited.length, source: 'precomputed', timestamp: new Date().toISOString() };
+        setCached(key, payload);
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return res.json(payload);
+      }
+    } catch (e) {
+      console.warn('Precomputed not available:', e.message);
+    }
+
+    // 2) Live compute guarded by options
     if (useLiveData === 'true') {
       try {
-        console.log('🔴 Getting REAL live articles from GitHub pipeline...');
-
-        // Use the working hybrid service instead of broken NewsImportService
         const hybridArticles = await hybridService.getEnhancedArticles({
           limit: parseInt(limit),
           minSeverity: parseFloat(minSeverity),
-          daysBack: 3,
+          daysBack: parseInt(daysBack),
           includeImages: true,
           allowPartial: true
         });
 
-        console.log(`📰 Retrieved ${hybridArticles.length} hybrid articles from pipeline`);
-
-        if (hybridArticles.length > 0) {
-          // Process articles for frontend with real images
-          const liveArticles = hybridArticles.map(article => {
+        const liveArticles = (topOnly === 'true' ? hybridArticles.slice(0, 6) : hybridArticles)
+          .map(article => {
             const articleImages = article.images || [];
             const featuredImage = articleImages.length > 0 ? articleImages[0].url :
-              'https://images.unsplash.com/photo-1504711434969-e33886168f5c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-
+              'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=80';
             return {
               id: article.id || `hybrid-${Date.now()}-${Math.random()}`,
               title: article.title,
@@ -434,39 +515,32 @@ router.get('/data/hybrid', async (req, res) => {
             };
           });
 
-          console.log(`✅ Successfully processed ${liveArticles.length} hybrid articles with images`);
-
-          res.json({
-            success: true,
-            data: liveArticles,
-            count: liveArticles.length,
-            source: 'hybrid_enhanced_live',
-            note: 'Enhanced articles from critical newsletter seeds with full content and images',
-            timestamp: new Date().toISOString()
-          });
-          return;
-        } else {
-          console.warn('No hybrid articles found, falling back to cached');
-        }
-
+        const payload = {
+          success: true,
+          data: topOnly === 'true' ? liveArticles.slice(0, 6) : liveArticles.slice(0, parseInt(limit)),
+          count: topOnly === 'true' ? Math.min(6, liveArticles.length) : Math.min(parseInt(limit), liveArticles.length),
+          source: 'hybrid_enhanced_live',
+          timestamp: new Date().toISOString()
+        };
+        setCached(key, payload);
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return res.json(payload);
       } catch (hybridError) {
-        console.error('❌ Failed to get hybrid data:', hybridError.message);
-        // Fall through to cached data below
+        console.error('❌ Failed to get hybrid data live:', hybridError.message);
       }
     }
 
-    // FALLBACK: Use cached data if live fails or disabled
-    console.log('📋 Using cached newsletter fallback...');
+    // 3) Fallback: cached newsletter seeds only
     const criticalParser = hybridService.criticalParser;
     const rawArticles = await criticalParser.getLatestCriticalArticles({
       limit: parseInt(limit) * 2,
-      minSeverity: parseFloat(minSeverity)
+      minSeverity: parseFloat(minSeverity),
+      daysBack: parseInt(daysBack)
     });
 
-    // Filter and format for frontend
     const filteredArticles = rawArticles
       .filter(article => article.severity_score >= parseFloat(minSeverity))
-      .slice(0, parseInt(limit))
+      .slice(0, topOnly === 'true' ? 6 : parseInt(limit))
       .map(article => ({
         ...article,
         id: article.id || `article-${Date.now()}-${Math.random()}`,
@@ -478,15 +552,16 @@ router.get('/data/hybrid', async (req, res) => {
         displayDate: article.date || new Date().toISOString().split('T')[0]
       }));
 
-    console.log(`✅ Returning ${filteredArticles.length} cached articles as fallback`);
-
-    res.json({
+    const payload = {
       success: true,
       data: filteredArticles,
       count: filteredArticles.length,
       source: 'cached_fallback',
-      note: 'Critical newsletter seeds enhanced with full article content'
-    });
+      timestamp: new Date().toISOString()
+    };
+    setCached(key, payload);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return res.json(payload);
 
   } catch (error) {
     console.error('Error getting hybrid articles:', error);
