@@ -1,50 +1,31 @@
-name: Precompute FNS Hybrid Snapshots
+name: Precompute Hybrid News
 
 on:
-  workflow_dispatch: {}
   schedule:
-    - cron: '0 11,23 * * *' # 6am & 6pm Central Time (CDT ~ UTC-5)
+    - cron: '0 * * * *' # Run every hour
+  workflow_dispatch: # Allow manual runs
 
 jobs:
-  build-and-publish:
+  precompute:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Check out data branch
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          ref: data
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '16'
 
       - name: Install dependencies
-        run: |
-          npm ci --ignore-scripts
+        run: npm install
 
-      - name: Precompute hybrid data
-        run: |
-          node fragiled2/scripts/precompute_hybrid.js --out-dir precomputed
+      - name: Run precompute script
+        run: node scripts/precompute_hybrid.js
         env:
-          PRECOMPUTE_LIMIT: '24'
-          PRECOMPUTE_MIN_SEVERITY: '70'
-          PRECOMPUTE_DAYS_BACK: '2'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit precomputed artifacts to data branch
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git checkout -B data
-          mkdir -p data
-          mv precomputed/* data/
-          git add data/*.json
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "chore(fns): update precomputed hybrid snapshots"
-            git push -f origin data
-          fi
-
+      - name: Commit and push changes
+        run
